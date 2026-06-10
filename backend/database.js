@@ -67,9 +67,26 @@ async function initDatabase() {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
+        security_question TEXT,
+        security_answer TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Migração automática para adicionar colunas caso o banco já existisse sem elas
+    try {
+      await dbRun('ALTER TABLE users ADD COLUMN security_question TEXT');
+      console.log('Coluna security_question adicionada à tabela users.');
+    } catch (e) {
+      // Ignorar se a coluna já existir
+    }
+
+    try {
+      await dbRun('ALTER TABLE users ADD COLUMN security_answer TEXT');
+      console.log('Coluna security_answer adicionada à tabela users.');
+    } catch (e) {
+      // Ignorar se a coluna já existir
+    }
 
     // Tabela de Tarefas
     await dbRun(`

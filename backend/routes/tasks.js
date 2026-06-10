@@ -72,6 +72,12 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'O título da tarefa é obrigatório.' });
   }
 
+  // Validar se a data limite não está no passado
+  const today = new Date().toISOString().split('T')[0];
+  if (due_date && due_date < today) {
+    return res.status(400).json({ error: 'A data limite não pode ser no passado.' });
+  }
+
   try {
     // Inserir tarefa
     const result = await dbRun(
@@ -114,6 +120,14 @@ router.put('/:id', async (req, res) => {
     const task = await dbGet('SELECT * FROM tasks WHERE id = ? AND user_id = ?', [taskId, userId]);
     if (!task) {
       return res.status(404).json({ error: 'Tarefa não encontrada.' });
+    }
+
+    // Validar se a data limite foi alterada e não está no passado
+    if (due_date !== undefined && due_date !== task.due_date) {
+      const today = new Date().toISOString().split('T')[0];
+      if (due_date && due_date < today) {
+        return res.status(400).json({ error: 'A data limite não pode ser no passado.' });
+      }
     }
 
     // Preparar campos para atualização

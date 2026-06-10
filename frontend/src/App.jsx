@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react';
 import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
 import TaskList from './components/TaskList';
-import { LogOut, Home, ListTodo } from 'lucide-react';
+import { LogOut, Home, ListTodo, Sun, Moon } from 'lucide-react';
 
 const BACKEND_URL = 'http://localhost:5000';
 
 function App() {
   const [user, setUser] = useState(null);
   const [currentTab, setCurrentTab] = useState('dashboard'); // 'dashboard' ou 'tasks'
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('kuromi_theme') || 'dark';
+  });
 
   useEffect(() => {
     // Carregar sessão existente
@@ -22,6 +25,20 @@ function App() {
       });
     }
   }, []);
+
+  // Monitorar alterações no tema e aplicar no body do documento
+  useEffect(() => {
+    if (theme === 'light') {
+      document.body.classList.add('light-theme');
+    } else {
+      document.body.classList.remove('light-theme');
+    }
+    localStorage.setItem('kuromi_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prevTheme) => (prevTheme === 'dark' ? 'light' : 'dark'));
+  };
 
   const handleLoginSuccess = (token, userInfo) => {
     localStorage.setItem('kuromi_token', token);
@@ -39,9 +56,18 @@ function App() {
     setUser(null);
   };
 
-  // Se não estiver logado, exibe tela de Autenticação
+  // Se não estiver logado, exibe tela de Autenticação (passando também o tema atual se relevante)
   if (!user) {
-    return <Auth onLoginSuccess={handleLoginSuccess} backendUrl={BACKEND_URL} />;
+    return (
+      <div className={theme === 'light' ? 'light-theme' : ''}>
+        <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 1000 }}>
+          <button className="btn btn-outline btn-icon-only" onClick={toggleTheme} title="Alternar Tema">
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+        </div>
+        <Auth onLoginSuccess={handleLoginSuccess} backendUrl={BACKEND_URL} />
+      </div>
+    );
   }
 
   return (
@@ -54,6 +80,9 @@ function App() {
         </div>
         <div className="user-nav-info">
           <span className="username-display">😈 {user.username}</span>
+          <button className="btn btn-outline btn-icon-only" onClick={toggleTheme} title="Alternar Tema" style={{ padding: '8px' }}>
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
           <button className="btn btn-outline" onClick={handleLogout} style={{ padding: '8px 12px' }}>
             <LogOut size={16} /> Sair
           </button>

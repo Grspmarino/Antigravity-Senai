@@ -93,6 +93,18 @@ export default function TaskList({ user, backendUrl }) {
       return;
     }
 
+    // Validar se a data limite não está no passado
+    if (dueDate) {
+      const today = new Date().toISOString().split('T')[0];
+      const taskOriginal = modalMode === 'edit' ? tasks.find(t => t.id === selectedTaskId) : null;
+      const originalDueDate = taskOriginal ? (taskOriginal.due_date || '') : '';
+      
+      if (dueDate < today && dueDate !== originalDueDate) {
+        alert('A data limite não pode ser anterior a hoje! 💀');
+        return;
+      }
+    }
+
     // Processar tags (separar por vírgula e limpar espaços)
     const tagsArray = tagsInput
       .split(',')

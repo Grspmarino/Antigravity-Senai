@@ -16,22 +16,89 @@ export default function Dashboard({ user, backendUrl }) {
   const [moodSavedToday, setMoodSavedToday] = useState(null);
 
   // Estados do Pomodoro
-  const [pomodoroMinutes, setPomodoroMinutes] = useState(25);
-  const [pomodoroSeconds, setPomodoroSeconds] = useState(0);
   const [pomodoroActive, setPomodoroActive] = useState(false);
   const [pomodoroMode, setPomodoroMode] = useState('focus'); // 'focus' ou 'break'
-  const timerIntervalRef = useRef(null);
+  const [timeLeft, setTimeLeft] = useState(25 * 60 * 1000); // tempo em ms do Pomodoro
 
   // Data local hoje formato YYYY-MM-DD
   const getTodayString = () => new Date().toISOString().split('T')[0];
   const todayStr = getTodayString();
 
+  // Função auxiliar para carregar Pomodoro do localStorage
+  const loadPomodoroFromStorage = () => {
+    const active = localStorage.getItem('pomodoro_active') === 'true';
+    const mode = localStorage.getItem('pomodoro_mode') || 'focus';
+    const endTime = parseInt(localStorage.getItem('pomodoro_end_time') || '0', 10);
+    const pausedTime = parseInt(localStorage.getItem('pomodoro_paused_time') || '0', 10);
+    
+    let time = mode === 'focus' ? 25 * 60 * 1000 : 5 * 60 * 1000;
+    
+    if (active) {
+      const now = Date.now();
+      if (endTime > now) {
+        time = endTime - now;
+      } else {
+        time = 0;
+      }
+    } else if (pausedTime > 0) {
+      time = pausedTime;
+    }
+    
+    return { active, mode, timeLeft: time };
+  };
+
+  const handleTimerComplete = (currentMode) => {
+    playBeep();
+    alert(currentMode === 'focus' ? 'Hora de descansar, Kuromi! 🌸' : 'De volta ao trabalho focado! 💻');
+    
+    const nextMode = currentMode === 'focus' ? 'break' : 'focus';
+    const nextTime = nextMode === 'focus' ? 25 * 60 * 1000 : 5 * 60 * 1000;
+    
+    setPomodoroMode(nextMode);
+    setTimeLeft(nextTime);
+    setPomodoroActive(false);
+    
+    localStorage.setItem('pomodoro_mode', nextMode);
+    localStorage.setItem('pomodoro_active', 'false');
+    localStorage.setItem('pomodoro_paused_time', String(nextTime));
+  };
+
   useEffect(() => {
     fetchDashboardData();
-    return () => {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-    };
+
+    // Carregar configurações salvas do Pomodoro
+    const saved = loadPomodoroFromStorage();
+    setPomodoroActive(saved.active);
+    setPomodoroMode(saved.mode);
+    setTimeLeft(saved.timeLeft);
+
+    if (saved.active && saved.timeLeft <= 0) {
+      handleTimerComplete(saved.mode);
+    }
   }, []);
+
+  // Effect para rodar o ticker do Pomodoro se ativo
+  useEffect(() => {
+    if (!pomodoroActive) return;
+
+    const interval = setInterval(() => {
+      const endTime = parseInt(localStorage.getItem('pomodoro_end_time') || '0', 10);
+      const now = Date.now();
+      const diff = endTime - now;
+
+      if (diff <= 0) {
+        setTimeLeft(0);
+        setPomodoroActive(false);
+        localStorage.setItem('pomodoro_active', 'false');
+        localStorage.removeItem('pomodoro_paused_time');
+        handleTimerComplete(pomodoroMode);
+      } else {
+        setTimeLeft(diff);
+      }
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [pomodoroActive, pomodoroMode]);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -181,52 +248,51 @@ export default function Dashboard({ user, backendUrl }) {
 
   const startTimer = () => {
     if (pomodoroActive) return;
+    const now = Date.now();
+    
+    // Obter tempo restante
+    const pausedTime = parseInt(localStorage.getItem('pomodoro_paused_time') || '0', 10);
+    const duration = pausedTime > 0 ? pausedTime : timeLeft;
+    const endTime = now + duration;
+    
+    localStorage.setItem('pomodoro_end_time', String(endTime));
+    localStorage.setItem('pomodoro_active', 'true');
+    localStorage.removeItem('pomodoro_paused_time');
+    
     setPomodoroActive(true);
-    timerIntervalRef.current = setInterval(() => {
-      setPomodoroSeconds((prevSec) => {
-        if (prevSec === 0) {
-          setPomodoroMinutes((prevMin) => {
-            if (prevMin === 0) {
-              // Timer Finalizado!
-              clearInterval(timerIntervalRef.current);
-              playBeep();
-              alert(pomodoroMode === 'focus' ? 'Hora de descansar, Kuromi! 🌸' : 'De volta ao trabalho focado! 💻');
-              
-              const nextMode = pomodoroMode === 'focus' ? 'break' : 'focus';
-              setPomodoroMode(nextMode);
-              setPomodoroMinutes(nextMode === 'focus' ? 25 : 5);
-              setPomodoroActive(false);
-              return 0;
-            }
-            return prevMin - 1;
-          });
-          return 59;
-        }
-        return prevSec - 1;
-      });
-    }, 1000);
+    setTimeLeft(duration);
   };
 
   const pauseTimer = () => {
+    localStorage.setItem('pomodoro_active', 'false');
+    localStorage.setItem('pomodoro_paused_time', String(timeLeft));
     setPomodoroActive(false);
-    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
   };
 
   const resetTimer = () => {
+    const defaultTime = 25 * 60 * 1000;
+    localStorage.setItem('pomodoro_active', 'false');
+    localStorage.setItem('pomodoro_mode', 'focus');
+    localStorage.setItem('pomodoro_paused_time', String(defaultTime));
+    
     setPomodoroActive(false);
-    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     setPomodoroMode('focus');
-    setPomodoroMinutes(25);
-    setPomodoroSeconds(0);
+    setTimeLeft(defaultTime);
   };
 
   const changeTimerMode = (mode) => {
+    const targetTime = mode === 'focus' ? 25 * 60 * 1000 : 5 * 60 * 1000;
+    localStorage.setItem('pomodoro_active', 'false');
+    localStorage.setItem('pomodoro_mode', mode);
+    localStorage.setItem('pomodoro_paused_time', String(targetTime));
+    
     setPomodoroActive(false);
-    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     setPomodoroMode(mode);
-    setPomodoroMinutes(mode === 'focus' ? 25 : 5);
-    setPomodoroSeconds(0);
+    setTimeLeft(targetTime);
   };
+
+  const pomodoroMinutes = Math.floor(timeLeft / 60000);
+  const pomodoroSeconds = Math.floor((timeLeft % 60000) / 1000);
 
   if (loading) {
     return (
